@@ -1,0 +1,9 @@
+build/
+.vscode/
+include/
+lib/
+SDL2_mixer-2.0.4/
+sdl2/
+run.bat
+shell.bat
+r.bat
