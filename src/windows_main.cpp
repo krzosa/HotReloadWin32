@@ -7,6 +7,7 @@
 #define MILLISECONDS_BETWEEN_FRAMES 15
 
 global_variable SDL_GameController* gGameController = NULL;
+global_variable SDL_Window* window = NULL;
 
 /* TODO
     Integrate sound stuff into game dll
@@ -199,15 +200,31 @@ internal void handleInput(SDL_Event* event, user_input* input)
                         gGameController = NULL;
                     }
                 } break;
+                case(SDL_WINDOWEVENT):
+                {
+                    if(event->window.event == SDL_WINDOWEVENT_FOCUS_GAINED)
+                    {
+                        SDL_SetWindowBordered(window, SDL_TRUE);
+                        SDL_SetWindowOpacity(window, 1);
+                        SDL_Log("SDL_WINDOWEVENT_FOCUS_GAINED");
+                    }
+                    else if(event->window.event == SDL_WINDOWEVENT_FOCUS_LOST)
+                    {
+                        SDL_SetWindowBordered(window, SDL_FALSE);
+                        SDL_SetWindowOpacity(window, 0.5);
+                        SDL_Log("SDL_WINDOWEVENT_FOCUS_LOST");
+                    }
+                } break;
             }
     }
 }
 
 int main()
 {
-    SDL_Window* window = NULL;
+    
     SDL_Surface* screenSurface = NULL;
     SDL_Event event;
+
 
     char* basePath = SDL_GetBasePath();
     char dataPath[MAX_PATH];
@@ -238,7 +255,9 @@ int main()
         global_loop = 0;
     }
     
-    window = SDL_CreateWindow( "SDL Tutorial", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN );
+    Uint32 debugFlags = SDL_WINDOW_SHOWN | SDL_WINDOW_ALWAYS_ON_TOP;
+    Uint32 regularFlags = SDL_WINDOW_SHOWN;
+    window = SDL_CreateWindow( "SDL Tutorial", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, debugFlags );
     if(!window)
     {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Window could not be created! SDL_Error: %s\n", SDL_GetError() );
@@ -252,7 +271,7 @@ int main()
     {
         SDL_LogError(SDL_LOG_CATEGORY_AUDIO, "FAILED to open audio SDL_OpenAudio: %s\n", SDL_GetError());
     }
-
+    
     Mix_Music* TTNG = Mix_LoadMUS(musicPath);
     Mix_Chunk* effect = Mix_LoadWAV(soundPath);
     user_input input = {};
@@ -260,6 +279,8 @@ int main()
     SDL_Rect rect = {10, 10, 50, 50};
     Uint32 timerStart, timerStop, iterationTime, 
         betweenFramesTime, prevIterationTimer = 0;
+    
+
 
     // Mix_VolumeMusic(10);
     // Mix_PlayMusic(TTNG, 0);
