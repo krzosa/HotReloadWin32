@@ -5,8 +5,8 @@ cd ..\build
 
 
 echo "---------LIB---------"
-cl /LD /FC ..\src\game.cpp /link /EXPORT:moveRect
+cl -nologo -MT -Oi -LD -FC -W4 -wd4100 ..\src\game.cpp /link /EXPORT:UpdateAndRender
 echo "---------EXE---------"
-cl /Zi /FC ..\src\windows_main.cpp ..\lib\SDL2main.lib ..\lib\SDL2.lib ..\lib\SDL2_mixer.lib 
-echo "---------END---------"
+cl -nologo -MT -Oi -Zi -FC -W4 -wd4100 ..\src\windows_main.cpp ..\lib\SDL2main.lib ..\lib\SDL2.lib ..\lib\SDL2_mixer.lib 
+
 cd ..\src

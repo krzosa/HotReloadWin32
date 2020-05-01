@@ -26,14 +26,10 @@ global_variable SDL_Window* window = NULL;
     Compile with /LD flag and also tell the compiler which functions to export with /link /EXPORT:function ...   */
 
 
-/* explanation: https://hero.handmade.network/episode/code/day006/ */
-#define MOVE_RECT(name) bool name(user_input *input, SDL_Rect *rect)
-/* this expands to a function definition: move_rect(user_input *input, SDL_Rect *rect) */
-typedef MOVE_RECT(move_rect);
-/* this expands to a function: moveRectStub(user_input *input, SDL_Rect *rect) {}  */
-MOVE_RECT(moveRectStub)
+#define UPDATE_AND_RENDER(name) void name(graphics_buffer* buffer, user_input *input, game_state *gameState)
+typedef UPDATE_AND_RENDER(UpdateAndRender);
+UPDATE_AND_RENDER(UpdateAndRenderStub)
 {
-    return 0;
 }
 
 global_variable int global_loop = 1;
@@ -41,7 +37,7 @@ global_variable int global_loop = 1;
 struct win32_game_code
 {
     HMODULE library;
-    move_rect* move_rect;
+    UpdateAndRender* UpdateAndRender;
     bool isValid;
 };
 
@@ -51,7 +47,7 @@ internal void Win32UnloadGameCode(win32_game_code *GameCode)
     {
         FreeLibrary(GameCode->library);
         GameCode->library = 0;
-        GameCode->move_rect = NULL;
+        GameCode->UpdateAndRender = UpdateAndRenderStub;
     }
 
     GameCode->isValid = false;
@@ -63,41 +59,22 @@ internal win32_game_code Win32LoadGameCode(char* mainDllPath, char* tempDllPath)
     CopyFileA((LPCSTR)mainDllPath, (LPCSTR)tempDllPath, FALSE);
 
     Result.library = LoadLibraryA(tempDllPath);
+    Result.isValid = 1;
     if(Result.library)
     {
-        Result.move_rect = (move_rect *)
-            GetProcAddress(Result.library, "moveRect");
+        Result.UpdateAndRender = (UpdateAndRender*)
+            GetProcAddress(Result.library, "UpdateAndRender");
 
-        Result.isValid = (Result.move_rect != 0);
+        Result.isValid = (Result.UpdateAndRender != 0);
     }
 
     if(Result.isValid == 0)
     {
-        Result.move_rect = moveRectStub;
+        Result.UpdateAndRender = UpdateAndRenderStub;
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,"FAILED to load function from a DLL");
     }
 
     return Result;
-}
-
-internal void renderGradient(graphics_buffer* buffer, int offsetX, int offsetY)
-{
-    Uint8 *Row = (Uint8 *)buffer->pixels;    
-    for(int Y = 0; Y < buffer->height; ++Y)
-    {
-        Uint32 *Pixel = (Uint32 *)Row;
-        for(int X = 0; X < buffer->width; ++X)
-        {
-            Uint8 Blue = (X + offsetX);
-            Uint8 Green = (Y + offsetY);
-
-            // RGBA 
-            *Pixel++ = ((Green << 8) | Blue << 16);
-        }
-        
-        Row += 4 * buffer->width;
-    }
-
 }
 
 internal void handleInput(SDL_Event* event, user_input* input, SDL_GameController* gGameController)
@@ -264,21 +241,21 @@ int main()
     char mainDllPath[MAX_PATH];
     char tempDllPath[MAX_PATH];
 
-    strcpy(dataPath, basePath);
-    strcpy(mainDllPath, basePath);
-    strcpy(tempDllPath, basePath);
+    strcpy_s(dataPath, basePath);
+    strcpy_s(mainDllPath, basePath);
+    strcpy_s(tempDllPath, basePath);
 
-    strcat(dataPath, "data\\"); 
-    strcat(mainDllPath, "game.dll");
-    strcat(tempDllPath, "game_temp.dll");
+    strcat_s(dataPath, "data\\"); 
+    strcat_s(mainDllPath, "game.dll");
+    strcat_s(tempDllPath, "game_temp.dll");
     SDL_LogDebug(SDL_LOG_CATEGORY_SYSTEM, "mainDLLPath: %s\n tempDLLPath: %s\n dataPath: %s", mainDllPath, tempDllPath, dataPath);
 
     char musicPath[MAX_PATH];
     char soundPath[MAX_PATH];
-    strcpy(musicPath, dataPath);
-    strcpy(soundPath, dataPath);
-    strcat(musicPath, "whateverwhenever.mp3");
-    strcat(soundPath, "confirm_style_1_001.wav");
+    strcpy_s(musicPath, dataPath);
+    strcpy_s(soundPath, dataPath);
+    strcat_s(musicPath, "whateverwhenever.mp3");
+    strcat_s(soundPath, "confirm_style_1_001.wav");
 
 
     if( SDL_Init( SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER ) < 0 )
@@ -289,11 +266,13 @@ int main()
     }
     
 #if 1
-    Uint32 windowFlags = SDL_WINDOW_SHOWN | SDL_WINDOW_ALWAYS_ON_TOP | SDL_WINDOW_RESIZABLE;
+    Uint32 windowFlags = SDL_WINDOW_SHOWN | SDL_WINDOW_ALWAYS_ON_TOP;
+    int window_start_x = 1200;
 #else
     Uint32 windowFlags = SDL_WINDOW_SHOWN;
+    int window_start_x = SDL_WINDOWPOS_UNDEFINED;
 #endif
-    window = SDL_CreateWindow( "SDL Tutorial", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, windowFlags );
+    window = SDL_CreateWindow( "SDL Tutorial", window_start_x, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, windowFlags );
     if(!window)
     {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "FAILED to create window: %s\n", SDL_GetError() );
@@ -311,7 +290,7 @@ int main()
     SDL_SetRenderDrawColor(renderer, 0, 150, 150, 255);
     SDL_GetWindowSize(window, &buffer.width, &buffer.height);
     // SDL_PIXELFORMAT_RGBA8888
-    buffer.texture = SDL_CreateTexture(renderer,
+    SDL_Texture* texture = SDL_CreateTexture(renderer,
                                             SDL_PIXELFORMAT_RGBA32,
                                             SDL_TEXTUREACCESS_STREAMING,
                                             buffer.width,
@@ -330,10 +309,13 @@ int main()
     Mix_Music* TTNG = Mix_LoadMUS(musicPath);
     Mix_Chunk* effect = Mix_LoadWAV(soundPath);
     user_input input = {};
-    input.deadzone = 7000;
+
     input.stickRange = 4;
     win32_game_code gameCode;
-    SDL_Rect rect = {10, 10, 50, 50};
+    game_state gameState = {};
+    gameState.player.x = 10;
+    gameState.player.y = 10;
+
     Uint32 timerStart, timerStop, iterationTime, 
         betweenFramesTime, prevIterationTimer = 0;
     
@@ -358,11 +340,11 @@ int main()
         }
         handleInput(&event, &input, gGameController);
 
-        gameCode.move_rect(&input, &rect);
-        renderGradient(&buffer, rect.x, rect.y);
-        SDL_UpdateTexture(buffer.texture, 0, buffer.pixels, buffer.width * 4);
-        SDL_RenderCopy(renderer, buffer.texture, 0, 0); // GRAPHICS CODE IS LEAKING
+        gameCode.UpdateAndRender(&buffer, &input, &gameState);
+        SDL_UpdateTexture(texture, 0, buffer.pixels, buffer.width * buffer.bytesPerPixel);
+        SDL_RenderCopy(renderer, texture, 0, 0); 
         SDL_RenderPresent(renderer);
+        // TODO: buffer is streching because we have wrong window values in our graphics buffer structure
 
         timerStop = SDL_GetTicks();
         iterationTime = timerStop - timerStart;

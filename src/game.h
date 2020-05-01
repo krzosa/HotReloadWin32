@@ -1,5 +1,4 @@
 #pragma once
-#include "include\SDL.h"
 #define NO_STDIO_REDIRECT
 #define SCREEN_WIDTH 700
 #define SCREEN_HEIGHT 960
@@ -21,14 +20,26 @@ struct user_input
     // for example if set to 4, stick only can
     // have values from 0 to 4
     int stickRange;
-    int deadzone;
+    // int deadzone;
 };
 
 struct graphics_buffer
 {
-    SDL_Texture* texture;
     void* pixels;
     int bytesPerPixel;
     int width;
     int height;
+};
+
+struct player
+{
+    int x;
+    int y;
+    int width;
+    int height;
+};
+
+struct game_state
+{
+    player player;
 };
