@@ -12,8 +12,14 @@ struct user_input
     bool down;
     bool left;
     bool right;
-    bool a;
-    bool b;
+    bool button1;
+    bool button2;
+    bool special1;
+    
     int stickX;
     int stickY;
+    // for example if set to 4, stick only can
+    // have values from 0 to 4
+    int stickRange;
+    int deadzone;
 };

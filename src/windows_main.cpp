@@ -5,17 +5,21 @@
 #include "game.h"
 
 #define MILLISECONDS_BETWEEN_FRAMES 15
+#define SDLControllerStickMaxValue 
+#define ControllerDefinePossibleValuesOfStick 4
+#define QLOG SDL_Log("working");
+#define QLOG(var) SDL_Log("working %d", var);
 
-global_variable SDL_GameController* gGameController = NULL;
 global_variable SDL_Window* window = NULL;
 
 /* TODO
     Integrate sound stuff into game dll
     Do something with file paths
-    Normalize joystick / keyboard controls (movement speed)
+    Normalize joystick / keyboard controls (movement speed) digitalize controller inputs?
     Looping feature
     Instantenous dll loading
-    */
+    Support for multiple gamepads
+*/
 
 /* NOTES:
     Before copying temp dll to main dll make sure to NULL all the pointers that accessed something from the dll
@@ -40,7 +44,6 @@ struct win32_game_code
     move_rect* move_rect;
     bool isValid;
 };
-
 
 internal void Win32UnloadGameCode(win32_game_code *GameCode)
 {
@@ -71,13 +74,13 @@ internal win32_game_code Win32LoadGameCode(char* mainDllPath, char* tempDllPath)
     if(Result.isValid == 0)
     {
         Result.move_rect = moveRectStub;
-        SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION,"FAILED to load function from a DLL");
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,"FAILED to load function from a DLL");
     }
 
     return Result;
 }
 
-internal void handleInput(SDL_Event* event, user_input* input)
+internal void handleInput(SDL_Event* event, user_input* input, SDL_GameController* gGameController)
 {
     while (SDL_PollEvent(event)) {
     switch (event->type)
@@ -110,11 +113,11 @@ internal void handleInput(SDL_Event* event, user_input* input)
                     }
                     else if (event->key.keysym.sym == SDLK_z)
                     {
-                        input->a = 1;
+                        input->button1 = 1;
                     }
                     else if (event->key.keysym.sym == SDLK_x)
                     {
-                        input->b = 1;
+                        input->button2 = 1;
                     }
                     else if (event->key.keysym.sym == SDLK_ESCAPE)
                     {
@@ -145,45 +148,55 @@ internal void handleInput(SDL_Event* event, user_input* input)
                     }
                     else if (event->key.keysym.sym == SDLK_z)
                     {
-                        input->a = 0;
+                        input->button1 = 0;
                     }
                     else if (event->key.keysym.sym == SDLK_x)
                     {
-                        input->b = 0;
+                        input->button2 = 0;
                     }
                 } break; 
                 case(SDL_CONTROLLERBUTTONDOWN):
                 {
                     if (event->cbutton.button == SDL_CONTROLLER_BUTTON_A)
                     {
-                        input->a = 1;
+                        input->button1 = 1;
                     }
                     else if (event->cbutton.button == SDL_CONTROLLER_BUTTON_B)
                     {   
-                        input->b = 1;
+                        input->button2 = 1;
+                    }
+                    else if (event->cbutton.button == SDL_CONTROLLER_BUTTON_RIGHTSHOULDER)
+                    {   
+                        input->special1 = 1;
                     }
                 } break;        
                 case(SDL_CONTROLLERBUTTONUP):
                 {
                     if (event->cbutton.button == SDL_CONTROLLER_BUTTON_A)
                     {
-                        input->a = 0;
+                        input->button1 = 0;
                     }
                     else if (event->cbutton.button == SDL_CONTROLLER_BUTTON_B)
                     {   
-                        input->b = 0;
+                        input->button2 = 0;
+                    }
+                    else if (event->cbutton.button == SDL_CONTROLLER_BUTTON_RIGHTSHOULDER)
+                    {   
+                        input->special1 = 0;
                     }
 
                 } break;        
                 case(SDL_CONTROLLERAXISMOTION):
                 {
+                    int controllerStickMaxValue = 32767;
                     if(event->caxis.axis == SDL_CONTROLLER_AXIS_LEFTX )
                     {
-                        input->stickX = event->caxis.value;
+                        // Normalizing stick value to range <0, 4> 
+                        input->stickX = event->caxis.value / (controllerStickMaxValue / input->stickRange);
                     }
                     else if (event->caxis.axis == SDL_CONTROLLER_AXIS_LEFTY )
                     {
-                        input->stickY = event->caxis.value;
+                        input->stickY = event->caxis.value / (controllerStickMaxValue / input->stickRange);
                     }
                 } break;        
                 case(SDL_CONTROLLERDEVICEADDED):
@@ -206,13 +219,13 @@ internal void handleInput(SDL_Event* event, user_input* input)
                     {
                         SDL_SetWindowBordered(window, SDL_TRUE);
                         SDL_SetWindowOpacity(window, 1);
-                        SDL_Log("SDL_WINDOWEVENT_FOCUS_GAINED");
+                        // SDL_Log("SDL_WINDOWEVENT_FOCUS_GAINED");
                     }
                     else if(event->window.event == SDL_WINDOWEVENT_FOCUS_LOST)
                     {
                         SDL_SetWindowBordered(window, SDL_FALSE);
                         SDL_SetWindowOpacity(window, 0.5);
-                        SDL_Log("SDL_WINDOWEVENT_FOCUS_LOST");
+                        // SDL_Log("SDL_WINDOWEVENT_FOCUS_LOST");
                     }
                 } break;
             }
@@ -221,9 +234,9 @@ internal void handleInput(SDL_Event* event, user_input* input)
 
 int main()
 {
-    
-    SDL_Surface* screenSurface = NULL;
     SDL_Event event;
+    SDL_Surface* screenSurface = NULL;
+    SDL_GameController* gGameController = NULL;
 
 
     char* basePath = SDL_GetBasePath();
@@ -255,14 +268,34 @@ int main()
         global_loop = 0;
     }
     
-    Uint32 debugFlags = SDL_WINDOW_SHOWN | SDL_WINDOW_ALWAYS_ON_TOP;
-    Uint32 regularFlags = SDL_WINDOW_SHOWN;
-    window = SDL_CreateWindow( "SDL Tutorial", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, debugFlags );
+#if 1
+    Uint32 windowFlags = SDL_WINDOW_SHOWN | SDL_WINDOW_ALWAYS_ON_TOP;
+#else
+    Uint32 windowFlags = SDL_WINDOW_SHOWN;
+#endif
+    window = SDL_CreateWindow( "SDL Tutorial", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, windowFlags );
     if(!window)
     {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Window could not be created! SDL_Error: %s\n", SDL_GetError() );
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "FAILED to create window: %s\n", SDL_GetError() );
         global_loop = 0;  
     } 
+
+    SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    if (!renderer)
+    {
+        SDL_LogError(SDL_LOG_CATEGORY_RENDER, "FAILED to create renderer");
+        global_loop = 0;
+    }
+    SDL_SetRenderDrawColor(renderer, 0, 150, 150, 255);
+    int windowWidth, windowHeight = 0;
+    SDL_GetWindowSize(window, &windowWidth, &windowHeight);
+    SDL_Texture *texture = SDL_CreateTexture(renderer,
+                                            SDL_PIXELFORMAT_ARGB8888,
+                                            SDL_TEXTUREACCESS_STREAMING,
+                                            windowWidth,
+                                            windowHeight);
+    void *pixels = malloc(windowWidth * windowHeight * 4);
+
 
     int sampleRate = 44100;
     int channels = 2;
@@ -271,17 +304,17 @@ int main()
     {
         SDL_LogError(SDL_LOG_CATEGORY_AUDIO, "FAILED to open audio SDL_OpenAudio: %s\n", SDL_GetError());
     }
-    
+
     Mix_Music* TTNG = Mix_LoadMUS(musicPath);
     Mix_Chunk* effect = Mix_LoadWAV(soundPath);
     user_input input = {};
+    input.deadzone = 7000;
+    input.stickRange = 4;
     win32_game_code gameCode;
     SDL_Rect rect = {10, 10, 50, 50};
     Uint32 timerStart, timerStop, iterationTime, 
         betweenFramesTime, prevIterationTimer = 0;
     
-
-
     // Mix_VolumeMusic(10);
     // Mix_PlayMusic(TTNG, 0);
     Mix_PlayChannel( -1, effect, 0 );
@@ -301,12 +334,21 @@ int main()
             gameCode = Win32LoadGameCode(mainDllPath, tempDllPath); 
             gameCodeLoadIterator = 0;
         }
-        handleInput(&event, &input);
+        handleInput(&event, &input, gGameController);
 
         gameCode.move_rect(&input, &rect);
-        SDL_FillRect( screenSurface, NULL, SDL_MapRGB( screenSurface->format, 0x55, 0xFF, 0xFF ) );
-        SDL_FillRect( screenSurface, &rect, SDL_MapRGB( screenSurface->format, 0xFF, 0x55, 0x55 ));
-        SDL_UpdateWindowSurface( window );
+        SDL_UpdateTexture(texture, &rect, pixels, windowWidth * 4);
+        SDL_RenderCopy(renderer, texture, 0, 0); // GRAPHICS CODE IS LEAKING
+        SDL_RenderPresent(renderer);
+
+        // SDL_RenderClear(renderer);
+        // SDL_RenderPresent(renderer);
+        // SDL_FillRect( screenSurface, &rect, SDL_MapRGB( screenSurface->format, 0xFF, 0x55, 0x55 ));
+        // SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, screenSurface);
+        // SDL_RenderCopy(renderer, texture, NULL, NULL);
+        // SDL_RenderPresent(renderer);
+
+
 
         timerStop = SDL_GetTicks();
         iterationTime = timerStop - timerStart;

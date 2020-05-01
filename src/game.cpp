@@ -2,7 +2,7 @@
 #include "include/SDL.h"
 
 
-int clamp(int min, int val, int max)
+internal int clamp(int min, int val, int max)
 {
     if (val > max) return max;
     else if (val < min ) return min;
@@ -11,8 +11,8 @@ int clamp(int min, int val, int max)
 
 bool moveRect(user_input *input, SDL_Rect *rect)
 {
-    rect->x += (input->stickX / 9000 );
-    rect->y += (input->stickY / 9000 );
+    rect->x += (input->stickX);
+    rect->y += (input->stickY);
 	rect->x += input->right;
     rect->x -= input->left;
     rect->y -= input->up;
