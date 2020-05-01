@@ -1,8 +1,8 @@
-#include "include/SDL.h"
-#include <cstring>
-#include <windows.h>
-#include "main.h"
 #define SDL_MAIN_HANDLED
+#include "include/SDL.h"
+#include "include/SDL_mixer.h"
+#include <windows.h>
+#include "game.h"
 
 /* TODO
     Joystick check every now and then (every 4 secs lets say) 
@@ -10,14 +10,15 @@
     Add fps lock, fps counter 
     Add delta time for fps independent stuff
     Loading wav files and stuff like that 
+    Looping feature
+    Instantenous dll loading
+
     */
 
 /* NOTES:
     Before copying temp dll to main dll make sure to NULL all the pointers that accessed something from the dll
     Compile with /LD flag and also tell the compiler which functions to export with /link /EXPORT:function ...   */
 
-
-const int SAMPLE_RATE = 44100;
 
 /* explanation: https://hero.handmade.network/episode/code/day006/ */
 #define MOVE_RECT(name) void name(user_input *input, SDL_Rect *rect)
@@ -29,25 +30,6 @@ MOVE_RECT(moveRectStub)
 }
 
 global_variable int global_loop = 1;
-
-
-internal void
-SDLAudioCallback(void *userData, Uint8 *audioBuffer, int length_)
-{
-    // Sint16 *buffer = (Sint16*)audioBuffer;
-    // int &sample_nr(*(int*)userData);
-    // int length = length_ / 2;
-    // int freq = 5000;
-
-    // for(int i = 0; i < length; i++, sample_nr++)
-    // {
-    //     double time = (double)sample_nr / (double)SAMPLE_RATE;
-    //     buffer[i] = (Sint16)(5000 * sin(2.0f * M_PI * 441.0f * time)); // render 441 HZ sine wave
-    //     // buffer[i] = (Sint16)(freq * time);
-    //     if(sample_nr == SAMPLE_RATE) sample_nr = 0;
-    //     // SDL_Log("%d\n", freq);
-    // }
-}
 
 struct win32_game_code
 {
@@ -74,7 +56,7 @@ internal win32_game_code Win32LoadGameCode(char* mainDllPath, char* tempDllPath)
     win32_game_code Result;
     CopyFile((LPCSTR)mainDllPath, (LPCSTR)tempDllPath, FALSE);
 
-    Result.library = LoadLibraryA("main_temp.dll");
+    Result.library = LoadLibraryA(tempDllPath);
     if(Result.library)
     {
         Result.move_rect = (move_rect *)
@@ -86,6 +68,7 @@ internal win32_game_code Win32LoadGameCode(char* mainDllPath, char* tempDllPath)
     if(Result.isValid == 0)
     {
         Result.move_rect = moveRectStub;
+        SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION,"FAILED to load function from a DLL");
     }
 
     return Result;
@@ -209,13 +192,29 @@ int main()
     SDL_Window* window = NULL;
     SDL_Surface* screenSurface = NULL;
     SDL_GameController* gGameController = NULL;
+    SDL_Event event;
 
-    char* mainDllPath = SDL_GetBasePath();
-    char* tempDllPath = SDL_GetBasePath();
-    // TODO: Bulletproof these pointers ? Should they also be freed ? (probably not)
-    strcat(mainDllPath, "main.dll");
-    strcat(tempDllPath, "main_temp.dll");
-    SDL_LogDebug(SDL_LOG_CATEGORY_SYSTEM, "%s, %s", mainDllPath, tempDllPath);
+    char* basePath = SDL_GetBasePath();
+    char dataPath[MAX_PATH];
+    char mainDllPath[MAX_PATH];
+    char tempDllPath[MAX_PATH];
+
+    strcpy(dataPath, basePath);
+    strcpy(mainDllPath, basePath);
+    strcpy(tempDllPath, basePath);
+
+    strcat(dataPath, "data\\"); 
+    strcat(mainDllPath, "game.dll");
+    strcat(tempDllPath, "game_temp.dll");
+    SDL_LogDebug(SDL_LOG_CATEGORY_SYSTEM, "mainDLLPath: %s\n tempDLLPath: %s\n dataPath: %s", mainDllPath, tempDllPath, dataPath);
+
+    char musPath[MAX_PATH];
+    char effectPath[MAX_PATH];
+    strcpy(musPath, dataPath);
+    strcpy(effectPath, dataPath);
+    strcat(musPath, "whateverwhenever.mp3");
+    strcat(effectPath, "confirm_style_1_001.wav");
+
 
     if( SDL_Init( SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER ) < 0 )
     {
@@ -231,13 +230,17 @@ int main()
         global_loop = 0;  
     } 
 
-    user_input input = {};
-    input.deadzone = 8000;
+
+    if(Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 1024) == -1)
+    {
+        SDL_LogError(SDL_LOG_CATEGORY_AUDIO, "FAILED to open audio SDL_OpenAudio: %s\n", SDL_GetError());
+    }
+
+
     // Note(Karol): Should this be inside loop. Maybe every 120 frames?
     if( SDL_NumJoysticks() < 1 )
     {
         SDL_LogDebug( SDL_LOG_CATEGORY_INPUT, "Warning: No joysticks connected!\n" );
-        input.isGamePadConnected = false;
     }
     else
     {
@@ -245,35 +248,20 @@ int main()
         if( gGameController == NULL )
         {
             SDL_LogDebug( SDL_LOG_CATEGORY_INPUT, "Warning: Unable to open game controller! SDL Error: %s\n", SDL_GetError() );
-            input.isGamePadConnected = false;
         }
-        else input.isGamePadConnected = true;
     }
 
-    
-
-    int sampleNumber = 5;
-    SDL_AudioSpec audioSettings;
-    audioSettings.freq = SAMPLE_RATE;
-    audioSettings.format = AUDIO_S16SYS;
-    audioSettings.channels = 2;    /* 1 = mono, 2 = stereo */
-    audioSettings.samples = 2048;  /* Good low-latency value for callback */
-    audioSettings.callback = SDLAudioCallback;
-    audioSettings.userdata = &sampleNumber;
-
-    /* Open the audio device, forcing the desired format */
-    if ( SDL_OpenAudio(&audioSettings, NULL) < 0 ) {SDL_LogError(SDL_LOG_CATEGORY_AUDIO, "Couldn't open audio: %s\n", SDL_GetError());}
-
-    SDL_PauseAudio(0);
-    SDL_Event event;
+    Mix_Music* TTNG = Mix_LoadMUS(musPath);
+    Mix_Chunk* effect = Mix_LoadWAV(effectPath);
+    user_input input = {};
     move_rect* moveRect;
     win32_game_code gameCode;
-    SDL_Rect rect;
-    rect.x = 10;
-    rect.y = 10;
-    rect.w = 20;
-    rect.h = 50;
+    SDL_Rect rect = {10, 10, 50, 50};
     
+    // Mix_VolumeMusic(10);
+    // Mix_PlayMusic(TTNG, 0);
+    Mix_PlayChannel( -1, effect, 0 );
+
     int gameCodeLoadIterator = 0;
     screenSurface = SDL_GetWindowSurface( window );
     gameCode = Win32LoadGameCode(mainDllPath, tempDllPath);
@@ -291,10 +279,4 @@ int main()
         SDL_FillRect( screenSurface, &rect, SDL_MapRGB( screenSurface->format, 0xFF, 0x55, 0x55 ));
         SDL_UpdateWindowSurface( window );
     }
-
-    
-    // TODO: is this necessary?
-    SDL_DestroyWindow( window );
-    SDL_Quit();
-    return 0;
 }

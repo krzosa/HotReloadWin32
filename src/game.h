@@ -1,3 +1,5 @@
+#pragma once
+
 #define NO_STDIO_REDIRECT
 #define SCREEN_WIDTH 700
 #define SCREEN_HEIGHT 960
@@ -12,8 +14,6 @@ struct user_input
     bool right;
     bool a;
     bool b;
-    bool isGamePadConnected;
     int stickX;
     int stickY;
-    int deadzone;
 };
