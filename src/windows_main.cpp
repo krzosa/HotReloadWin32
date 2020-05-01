@@ -337,7 +337,23 @@ int main()
         handleInput(&event, &input, gGameController);
 
         gameCode.move_rect(&input, &rect);
-        SDL_UpdateTexture(texture, &rect, pixels, windowWidth * 4);
+        
+        Uint8 *Row = (Uint8 *)pixels;    
+        for(int Y = 0; Y < windowHeight; ++Y)
+        {
+            Uint32 *Pixel = (Uint32 *)Row;
+            for(int X = 0; X < windowWidth; ++X)
+            {
+                Uint8 Blue = (X + rect.x);
+                Uint8 Green = (Y + rect.y);
+
+                *Pixel++ = ((Green << 8) | Blue);
+            }
+            
+            Row += 4 * windowWidth;
+        }
+
+        SDL_UpdateTexture(texture, 0, pixels, windowWidth * 4);
         SDL_RenderCopy(renderer, texture, 0, 0); // GRAPHICS CODE IS LEAKING
         SDL_RenderPresent(renderer);
 
