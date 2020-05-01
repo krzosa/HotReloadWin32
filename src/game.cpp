@@ -9,7 +9,7 @@ int clamp(int min, int val, int max)
     return val;
 }
 
-void moveRect(user_input *input, SDL_Rect *rect)
+bool moveRect(user_input *input, SDL_Rect *rect)
 {
     rect->x += (input->stickX / 9000 );
     rect->y += (input->stickY / 9000 );
@@ -19,4 +19,6 @@ void moveRect(user_input *input, SDL_Rect *rect)
     rect->y += input->down;
     rect->y = clamp(0, rect->y, SCREEN_HEIGHT - rect->h);
     rect->x = clamp(0, rect->x, SCREEN_WIDTH - rect->w);
+
+    return 1;
 }

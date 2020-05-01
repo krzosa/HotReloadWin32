@@ -4,15 +4,16 @@
 #include <windows.h>
 #include "game.h"
 
+#define MILLISECONDS_BETWEEN_FRAMES 15
+
+global_variable SDL_GameController* gGameController = NULL;
+
 /* TODO
-    Joystick check every now and then (every 4 secs lets say) 
+    Integrate sound stuff into game dll
+    Do something with file paths
     Normalize joystick / keyboard controls (movement speed)
-    Add fps lock, fps counter 
-    Add delta time for fps independent stuff
-    Loading wav files and stuff like that 
     Looping feature
     Instantenous dll loading
-
     */
 
 /* NOTES:
@@ -21,12 +22,13 @@
 
 
 /* explanation: https://hero.handmade.network/episode/code/day006/ */
-#define MOVE_RECT(name) void name(user_input *input, SDL_Rect *rect)
+#define MOVE_RECT(name) bool name(user_input *input, SDL_Rect *rect)
 /* this expands to a function definition: move_rect(user_input *input, SDL_Rect *rect) */
 typedef MOVE_RECT(move_rect);
 /* this expands to a function: moveRectStub(user_input *input, SDL_Rect *rect) {}  */
 MOVE_RECT(moveRectStub)
 {
+    return 0;
 }
 
 global_variable int global_loop = 1;
@@ -54,7 +56,7 @@ internal void Win32UnloadGameCode(win32_game_code *GameCode)
 internal win32_game_code Win32LoadGameCode(char* mainDllPath, char* tempDllPath)
 {
     win32_game_code Result;
-    CopyFile((LPCSTR)mainDllPath, (LPCSTR)tempDllPath, FALSE);
+    CopyFileA((LPCSTR)mainDllPath, (LPCSTR)tempDllPath, FALSE);
 
     Result.library = LoadLibraryA(tempDllPath);
     if(Result.library)
@@ -183,6 +185,20 @@ internal void handleInput(SDL_Event* event, user_input* input)
                         input->stickY = event->caxis.value;
                     }
                 } break;        
+                case(SDL_CONTROLLERDEVICEADDED):
+                {
+                    SDL_Log("Controller %d connected", event->cdevice.which); 
+                    gGameController = SDL_GameControllerOpen( 0 );
+                    
+                } break;
+                case(SDL_CONTROLLERDEVICEREMOVED):
+                {
+                    SDL_Log("Controller %d disconnected", event->cdevice.which);
+                    if(event->cdevice.which == 0)
+                    {
+                        gGameController = NULL;
+                    }
+                } break;
             }
     }
 }
@@ -191,7 +207,6 @@ int main()
 {
     SDL_Window* window = NULL;
     SDL_Surface* screenSurface = NULL;
-    SDL_GameController* gGameController = NULL;
     SDL_Event event;
 
     char* basePath = SDL_GetBasePath();
@@ -208,12 +223,12 @@ int main()
     strcat(tempDllPath, "game_temp.dll");
     SDL_LogDebug(SDL_LOG_CATEGORY_SYSTEM, "mainDLLPath: %s\n tempDLLPath: %s\n dataPath: %s", mainDllPath, tempDllPath, dataPath);
 
-    char musPath[MAX_PATH];
-    char effectPath[MAX_PATH];
-    strcpy(musPath, dataPath);
-    strcpy(effectPath, dataPath);
-    strcat(musPath, "whateverwhenever.mp3");
-    strcat(effectPath, "confirm_style_1_001.wav");
+    char musicPath[MAX_PATH];
+    char soundPath[MAX_PATH];
+    strcpy(musicPath, dataPath);
+    strcpy(soundPath, dataPath);
+    strcat(musicPath, "whateverwhenever.mp3");
+    strcat(soundPath, "confirm_style_1_001.wav");
 
 
     if( SDL_Init( SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER ) < 0 )
@@ -230,34 +245,22 @@ int main()
         global_loop = 0;  
     } 
 
-
-    if(Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 1024) == -1)
+    int sampleRate = 44100;
+    int channels = 2;
+    int chunksize = 1024;
+    if(Mix_OpenAudio(sampleRate, MIX_DEFAULT_FORMAT, channels, chunksize) == -1)
     {
         SDL_LogError(SDL_LOG_CATEGORY_AUDIO, "FAILED to open audio SDL_OpenAudio: %s\n", SDL_GetError());
     }
 
-
-    // Note(Karol): Should this be inside loop. Maybe every 120 frames?
-    if( SDL_NumJoysticks() < 1 )
-    {
-        SDL_LogDebug( SDL_LOG_CATEGORY_INPUT, "Warning: No joysticks connected!\n" );
-    }
-    else
-    {
-        gGameController = SDL_GameControllerOpen( 0 );
-        if( gGameController == NULL )
-        {
-            SDL_LogDebug( SDL_LOG_CATEGORY_INPUT, "Warning: Unable to open game controller! SDL Error: %s\n", SDL_GetError() );
-        }
-    }
-
-    Mix_Music* TTNG = Mix_LoadMUS(musPath);
-    Mix_Chunk* effect = Mix_LoadWAV(effectPath);
+    Mix_Music* TTNG = Mix_LoadMUS(musicPath);
+    Mix_Chunk* effect = Mix_LoadWAV(soundPath);
     user_input input = {};
-    move_rect* moveRect;
     win32_game_code gameCode;
     SDL_Rect rect = {10, 10, 50, 50};
-    
+    Uint32 timerStart, timerStop, iterationTime, 
+        betweenFramesTime, prevIterationTimer = 0;
+
     // Mix_VolumeMusic(10);
     // Mix_PlayMusic(TTNG, 0);
     Mix_PlayChannel( -1, effect, 0 );
@@ -265,7 +268,12 @@ int main()
     int gameCodeLoadIterator = 0;
     screenSurface = SDL_GetWindowSurface( window );
     gameCode = Win32LoadGameCode(mainDllPath, tempDllPath);
+
     while (global_loop) {
+        timerStart = SDL_GetTicks();
+        betweenFramesTime = timerStart - prevIterationTimer; 
+        prevIterationTimer = SDL_GetTicks();
+
         if (gameCodeLoadIterator++ == 250)
         {
             Win32UnloadGameCode(&gameCode);
@@ -278,5 +286,13 @@ int main()
         SDL_FillRect( screenSurface, NULL, SDL_MapRGB( screenSurface->format, 0x55, 0xFF, 0xFF ) );
         SDL_FillRect( screenSurface, &rect, SDL_MapRGB( screenSurface->format, 0xFF, 0x55, 0x55 ));
         SDL_UpdateWindowSurface( window );
+
+        timerStop = SDL_GetTicks();
+        iterationTime = timerStop - timerStart;
+//       SDL_LogInfo(NULL, "%dms", betweenFramesTime);
+        if (iterationTime < MILLISECONDS_BETWEEN_FRAMES)
+        {
+            SDL_Delay(MILLISECONDS_BETWEEN_FRAMES - iterationTime);
+        }
     }
 }
