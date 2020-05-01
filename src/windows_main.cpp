@@ -37,9 +37,24 @@ global_variable int global_loop = 1;
 struct win32_game_code
 {
     HMODULE library;
+    FILETIME lastDllWriteTime;
     UpdateAndRender* UpdateAndRender;
     bool isValid;
 };
+
+internal FILETIME Win32GetLastWriteTime(char* file)
+{
+    FILETIME lastWriteTime = {};
+    WIN32_FIND_DATAA data;
+    HANDLE dllFileHandle = FindFirstFileA(file, &data);
+    if(dllFileHandle != INVALID_HANDLE_VALUE)
+    {
+        FindClose(dllFileHandle);
+        lastWriteTime = data.ftLastWriteTime;
+    }
+
+    return lastWriteTime;
+}
 
 internal void Win32UnloadGameCode(win32_game_code *GameCode)
 {
@@ -56,8 +71,9 @@ internal void Win32UnloadGameCode(win32_game_code *GameCode)
 internal win32_game_code Win32LoadGameCode(char* mainDllPath, char* tempDllPath)
 {
     win32_game_code Result;
-    CopyFileA((LPCSTR)mainDllPath, (LPCSTR)tempDllPath, FALSE);
+    Result.lastDllWriteTime = Win32GetLastWriteTime(tempDllPath);
 
+    CopyFileA((LPCSTR)mainDllPath, (LPCSTR)tempDllPath, FALSE);
     Result.library = LoadLibraryA(tempDllPath);
     Result.isValid = 1;
     if(Result.library)
@@ -332,7 +348,8 @@ int main()
         betweenFramesTime = timerStart - prevIterationTimer; 
         prevIterationTimer = SDL_GetTicks();
 
-        if (gameCodeLoadIterator++ == 250)
+        FILETIME dllFileWriteTime = Win32GetLastWriteTime(mainDllPath);
+        if (CompareFileTime(&dllFileWriteTime, &gameCode.lastDllWriteTime) != 0)
         {
             Win32UnloadGameCode(&gameCode);
             gameCode = Win32LoadGameCode(mainDllPath, tempDllPath); 
@@ -344,7 +361,6 @@ int main()
         SDL_UpdateTexture(texture, 0, buffer.pixels, buffer.width * buffer.bytesPerPixel);
         SDL_RenderCopy(renderer, texture, 0, 0); 
         SDL_RenderPresent(renderer);
-        // TODO: buffer is streching because we have wrong window values in our graphics buffer structure
 
         timerStop = SDL_GetTicks();
         iterationTime = timerStop - timerStart;

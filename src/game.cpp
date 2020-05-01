@@ -21,7 +21,7 @@ internal void renderGradient(graphics_buffer* buffer, int offsetX, int offsetY)
             Uint8 Green = (Uint8)Y + offsetY;
 
             // RGBA 
-            *Pixel++ = ((Green << 8) | Blue << 8);
+            *Pixel++ = ((Green << 8) | Blue << 16);
         }
         
         Row += 4 * buffer->width;
