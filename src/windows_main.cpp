@@ -8,7 +8,7 @@
 #define SDLControllerStickMaxValue 
 #define ControllerDefinePossibleValuesOfStick 4
 #define QLOG SDL_Log("working");
-#define QLOG(var) SDL_Log("working %d", var);
+#define QLOGINT(var) SDL_Log("working %d", var);
 
 global_variable SDL_Window* window = NULL;
 
@@ -78,6 +78,26 @@ internal win32_game_code Win32LoadGameCode(char* mainDllPath, char* tempDllPath)
     }
 
     return Result;
+}
+
+internal void renderGradient(graphics_buffer* buffer, int offsetX, int offsetY)
+{
+    Uint8 *Row = (Uint8 *)buffer->pixels;    
+    for(int Y = 0; Y < buffer->height; ++Y)
+    {
+        Uint32 *Pixel = (Uint32 *)Row;
+        for(int X = 0; X < buffer->width; ++X)
+        {
+            Uint8 Blue = (X + offsetX);
+            Uint8 Green = (Y + offsetY);
+
+            // RGBA 
+            *Pixel++ = ((Green << 8) | Blue << 16);
+        }
+        
+        Row += 4 * buffer->width;
+    }
+
 }
 
 internal void handleInput(SDL_Event* event, user_input* input, SDL_GameController* gGameController)
@@ -269,7 +289,7 @@ int main()
     }
     
 #if 1
-    Uint32 windowFlags = SDL_WINDOW_SHOWN | SDL_WINDOW_ALWAYS_ON_TOP;
+    Uint32 windowFlags = SDL_WINDOW_SHOWN | SDL_WINDOW_ALWAYS_ON_TOP | SDL_WINDOW_RESIZABLE;
 #else
     Uint32 windowFlags = SDL_WINDOW_SHOWN;
 #endif
@@ -286,16 +306,18 @@ int main()
         SDL_LogError(SDL_LOG_CATEGORY_RENDER, "FAILED to create renderer");
         global_loop = 0;
     }
+    graphics_buffer buffer = {};
+    buffer.bytesPerPixel = 4;
     SDL_SetRenderDrawColor(renderer, 0, 150, 150, 255);
-    int windowWidth, windowHeight = 0;
-    SDL_GetWindowSize(window, &windowWidth, &windowHeight);
-    SDL_Texture *texture = SDL_CreateTexture(renderer,
-                                            SDL_PIXELFORMAT_ARGB8888,
+    SDL_GetWindowSize(window, &buffer.width, &buffer.height);
+    // SDL_PIXELFORMAT_RGBA8888
+    buffer.texture = SDL_CreateTexture(renderer,
+                                            SDL_PIXELFORMAT_RGBA32,
                                             SDL_TEXTUREACCESS_STREAMING,
-                                            windowWidth,
-                                            windowHeight);
-    void *pixels = malloc(windowWidth * windowHeight * 4);
-
+                                            buffer.width,
+                                            buffer.height);
+    // NOTE: Windows function
+    buffer.pixels = VirtualAlloc(NULL, buffer.width * buffer.height * buffer.bytesPerPixel, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 
     int sampleRate = 44100;
     int channels = 2;
@@ -337,34 +359,10 @@ int main()
         handleInput(&event, &input, gGameController);
 
         gameCode.move_rect(&input, &rect);
-        
-        Uint8 *Row = (Uint8 *)pixels;    
-        for(int Y = 0; Y < windowHeight; ++Y)
-        {
-            Uint32 *Pixel = (Uint32 *)Row;
-            for(int X = 0; X < windowWidth; ++X)
-            {
-                Uint8 Blue = (X + rect.x);
-                Uint8 Green = (Y + rect.y);
-
-                *Pixel++ = ((Green << 8) | Blue);
-            }
-            
-            Row += 4 * windowWidth;
-        }
-
-        SDL_UpdateTexture(texture, 0, pixels, windowWidth * 4);
-        SDL_RenderCopy(renderer, texture, 0, 0); // GRAPHICS CODE IS LEAKING
+        renderGradient(&buffer, rect.x, rect.y);
+        SDL_UpdateTexture(buffer.texture, 0, buffer.pixels, buffer.width * 4);
+        SDL_RenderCopy(renderer, buffer.texture, 0, 0); // GRAPHICS CODE IS LEAKING
         SDL_RenderPresent(renderer);
-
-        // SDL_RenderClear(renderer);
-        // SDL_RenderPresent(renderer);
-        // SDL_FillRect( screenSurface, &rect, SDL_MapRGB( screenSurface->format, 0xFF, 0x55, 0x55 ));
-        // SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, screenSurface);
-        // SDL_RenderCopy(renderer, texture, NULL, NULL);
-        // SDL_RenderPresent(renderer);
-
-
 
         timerStop = SDL_GetTicks();
         iterationTime = timerStop - timerStart;

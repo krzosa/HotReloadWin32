@@ -11,14 +11,14 @@ internal int clamp(int min, int val, int max)
 
 bool moveRect(user_input *input, SDL_Rect *rect)
 {
-    rect->x += (input->stickX);
-    rect->y += (input->stickY);
-	rect->x += input->right;
-    rect->x -= input->left;
-    rect->y -= input->up;
-    rect->y += input->down;
-    rect->y = clamp(0, rect->y, SCREEN_HEIGHT - rect->h);
-    rect->x = clamp(0, rect->x, SCREEN_WIDTH - rect->w);
+    rect->x += (input->stickX) * 5;
+    rect->y += (input->stickY) * 5;
+	rect->x += input->right * input->stickRange;
+    rect->x -= input->left * input->stickRange;
+    rect->y -= input->up * input->stickRange;
+    rect->y += input->down * input->stickRange;
+    // rect->y = clamp(0, rect->y, SCREEN_HEIGHT - rect->h);
+    // rect->x = clamp(0, rect->x, SCREEN_WIDTH - rect->w);
 
     return 1;
 }
