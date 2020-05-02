@@ -268,13 +268,16 @@ int main()
 
     win32_game_code gameCode = {};
     gameCode = Win32LoadGameCode(mainDllPath, tempDllPath);
+
     user_input input = {};
     input.stickRange = 4;
+
     game_state gameState = {};
     gameState.player.x = 10;
     gameState.player.y = 10; 
     gameState.player.width = 50;
     gameState.player.height = 50;
+
     graphics_buffer buffer = {};
     buffer.bytesPerPixel = 4;
 
