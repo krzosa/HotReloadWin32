@@ -3,6 +3,7 @@ build/
 include/
 lib/
 SDL2_mixer-2.0.4/
+SDL2_image-2.0.5/
 sdl2/
 run.bat
 shell.bat
