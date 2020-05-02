@@ -1,38 +1,39 @@
 #define SDL_MAIN_HANDLED
 #include "include/SDL.h"
-#include "include/SDL_mixer.h"
 #include <windows.h>
 #include "game.h"
 
 #define MILLISECONDS_BETWEEN_FRAMES 15
-#define SDLControllerStickMaxValue 
-#define ControllerDefinePossibleValuesOfStick 4
-#define QLOG SDL_Log("working");
-#define QLOGINT(var) SDL_Log("working %d", var);
+#define SCREEN_WIDTH 700
+#define SCREEN_HEIGHT 960
 
 global_variable SDL_Window* window = NULL;
+global_variable int global_loop = 1;
 
-/* TODO
-    Integrate sound stuff into game dll
-    Do something with file paths
-    Normalize joystick / keyboard controls (movement speed) digitalize controller inputs?
-    Looping feature
-    Instantenous dll loading
-    Support for multiple gamepads
+/* General Overview:
+   1. Split the code into 2 parts, platform layer and the game/application
+   2. Compile the game / application into a dll and export functions from it
+   3. Copy the dll to a different file(to prevent windows from locking the file) 
+   4. Load the dll from that different file at runtime and extract the functions
+   5. In a loop keep checking if the dll changed
+    6. If it changed, null all the pointers to the previous dll
+    7. Copy the dll to a different file
+    8. Load the dll from that different file and extract the functions
 */
 
 /* NOTES:
     Before copying temp dll to main dll make sure to NULL all the pointers that accessed something from the dll
-    Compile with /LD flag and also tell the compiler which functions to export with /link /EXPORT:function ...   */
-
+    Compile with /LD flag and also tell the compiler which functions to export with /link /EXPORT:function ... 
+    There are some additional troubles if you want to have hot reload while debugging with Visual Studio because
+    VStudio is locking the PDB file so the solution is to write to a different file with a different name each time
+    you build the dll
+*/
 
 #define UPDATE_AND_RENDER(name) void name(graphics_buffer* buffer, user_input *input, game_state *gameState)
 typedef UPDATE_AND_RENDER(UpdateAndRender);
 UPDATE_AND_RENDER(UpdateAndRenderStub)
 {
 }
-
-global_variable int global_loop = 1;
 
 struct win32_game_code
 {
@@ -248,14 +249,12 @@ internal void handleInput(SDL_Event* event, user_input* input, SDL_GameControlle
 int main()
 {
     SDL_Event event;
-    SDL_Surface* screenSurface = NULL;
     SDL_GameController* gGameController = NULL;
 
-
     char* basePath = SDL_GetBasePath();
-    char dataPath[MAX_PATH];
-    char mainDllPath[MAX_PATH];
-    char tempDllPath[MAX_PATH];
+    char  dataPath[MAX_PATH];
+    char  mainDllPath[MAX_PATH];
+    char  tempDllPath[MAX_PATH];
 
     strcpy_s(dataPath, basePath);
     strcpy_s(mainDllPath, basePath);
@@ -264,97 +263,60 @@ int main()
     strcat_s(dataPath, "data\\"); 
     strcat_s(mainDllPath, "game.dll");
     strcat_s(tempDllPath, "game_temp.dll");
-    SDL_LogDebug(SDL_LOG_CATEGORY_SYSTEM, "mainDLLPath: %s\n tempDLLPath: %s\n dataPath: %s", mainDllPath, tempDllPath, dataPath);
 
-    char musicPath[MAX_PATH];
-    char soundPath[MAX_PATH];
-    strcpy_s(musicPath, dataPath);
-    strcpy_s(soundPath, dataPath);
-    strcat_s(musicPath, "whateverwhenever.mp3");
-    strcat_s(soundPath, "confirm_style_1_001.wav");
-
-
-    if( SDL_Init( SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER ) < 0 )
+    if( SDL_Init(SDL_INIT_EVERYTHING) < 0 )
     {
         SDL_LogError( SDL_LOG_CATEGORY_APPLICATION, 
             "SDL could not initialize! SDL_Error: %s\n", SDL_GetError() );
         global_loop = 0;
     }
     
-#if 1
-    Uint32 windowFlags = SDL_WINDOW_SHOWN | SDL_WINDOW_ALWAYS_ON_TOP;
-    int window_start_x = 1200;
-#else
-    Uint32 windowFlags = SDL_WINDOW_SHOWN;
-    int window_start_x = SDL_WINDOWPOS_UNDEFINED;
-#endif
-    window = SDL_CreateWindow( "SDL Tutorial", window_start_x, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, windowFlags );
+    window = SDL_CreateWindow( "Window", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN | SDL_WINDOW_ALWAYS_ON_TOP );
     if(!window)
     {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "FAILED to create window: %s\n", SDL_GetError() );
         global_loop = 0;  
     } 
 
-    SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
     if (!renderer)
     {
         SDL_LogError(SDL_LOG_CATEGORY_RENDER, "FAILED to create renderer");
         global_loop = 0;
     }
-    graphics_buffer buffer = {};
-    buffer.bytesPerPixel = 4;
-    SDL_SetRenderDrawColor(renderer, 0, 150, 150, 255);
-    SDL_GetWindowSize(window, &buffer.width, &buffer.height);
-    // SDL_PIXELFORMAT_RGBA8888
-    SDL_Texture* texture = SDL_CreateTexture(renderer,
-                                            SDL_PIXELFORMAT_RGBA32,
-                                            SDL_TEXTUREACCESS_STREAMING,
-                                            buffer.width,
-                                            buffer.height);
-    // NOTE: Windows function
-    buffer.pixels = VirtualAlloc(NULL, buffer.width * buffer.height * buffer.bytesPerPixel, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 
-    int sampleRate = 44100;
-    int channels = 2;
-    int chunksize = 1024;
-    if(Mix_OpenAudio(sampleRate, MIX_DEFAULT_FORMAT, channels, chunksize) == -1)
-    {
-        SDL_LogError(SDL_LOG_CATEGORY_AUDIO, "FAILED to open audio SDL_OpenAudio: %s\n", SDL_GetError());
-    }
-
-    Mix_Music* TTNG = Mix_LoadMUS(musicPath);
-    Mix_Chunk* effect = Mix_LoadWAV(soundPath);
+    win32_game_code gameCode = {};
+    gameCode = Win32LoadGameCode(mainDllPath, tempDllPath);
     user_input input = {};
-
     input.stickRange = 4;
-    win32_game_code gameCode;
     game_state gameState = {};
     gameState.player.x = 10;
-    gameState.player.y = 10;
+    gameState.player.y = 10; 
+    gameState.player.width = 50;
+    gameState.player.height = 50;
+    graphics_buffer buffer = {};
+    buffer.bytesPerPixel = 4;
 
-    Uint32 timerStart, timerStop, iterationTime, 
-        betweenFramesTime, prevIterationTimer = 0;
-    
-    // Mix_VolumeMusic(10);
-    // Mix_PlayMusic(TTNG, 0);
-    Mix_PlayChannel( -1, effect, 0 );
+    SDL_GetWindowSize(window, &buffer.width, &buffer.height);
+    SDL_Texture* texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING,
+                                            buffer.width, buffer.height);
+    // Windows function for allocating memory
+    buffer.pixels = VirtualAlloc(NULL, buffer.width * buffer.height * buffer.bytesPerPixel, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 
-    int gameCodeLoadIterator = 0;
-    screenSurface = SDL_GetWindowSurface( window );
-    gameCode = Win32LoadGameCode(mainDllPath, tempDllPath);
-
+    Uint32 prevIterationTimer = 0;
     while (global_loop) {
-        timerStart = SDL_GetTicks();
-        betweenFramesTime = timerStart - prevIterationTimer; 
+        Uint32 timerStart = SDL_GetTicks();
+        Uint32 betweenFramesTime = timerStart - prevIterationTimer; // delta time
         prevIterationTimer = SDL_GetTicks();
 
+        // check for last write to the dll and if it changed, reload the dll
         FILETIME dllFileWriteTime = Win32GetLastWriteTime(mainDllPath);
         if (CompareFileTime(&dllFileWriteTime, &gameCode.lastDllWriteTime) != 0)
         {
             Win32UnloadGameCode(&gameCode);
             gameCode = Win32LoadGameCode(mainDllPath, tempDllPath); 
-            gameCodeLoadIterator = 0;
         }
+
         handleInput(&event, &input, gGameController);
 
         gameCode.UpdateAndRender(&buffer, &input, &gameState);
@@ -362,12 +324,14 @@ int main()
         SDL_RenderCopy(renderer, texture, 0, 0); 
         SDL_RenderPresent(renderer);
 
-        timerStop = SDL_GetTicks();
-        iterationTime = timerStop - timerStart;
-//       SDL_LogInfo(NULL, "%dms", betweenFramesTime);
+        Uint32 timerStop = SDL_GetTicks();
+        Uint32 iterationTime = timerStop - timerStart;
+
+        // calculate how much we should delay a frame to keep steady framerate
         if (iterationTime < MILLISECONDS_BETWEEN_FRAMES)
         {
             SDL_Delay(MILLISECONDS_BETWEEN_FRAMES - iterationTime);
         }
     }
+    // Windows handles memory deallocation on exit so its not needed
 }

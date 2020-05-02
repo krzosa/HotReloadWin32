@@ -1,7 +1,7 @@
 #pragma once
+#include "include\SDL_stdinc.h"
+
 #define NO_STDIO_REDIRECT
-#define SCREEN_WIDTH 700
-#define SCREEN_HEIGHT 960
 #define internal static 
 #define global_variable static
 
@@ -42,4 +42,12 @@ struct player
 struct game_state
 {
     player player;
+};
+
+struct color
+{
+    Uint8 red;
+    Uint8 green;
+    Uint8 blue;
+    Uint8 alpha;
 };

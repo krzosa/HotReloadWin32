@@ -1,43 +1,59 @@
 #include "game.h"
 #include "include/SDL.h"
 
-
-internal int clamp(int min, int val, int max)
-{
-    if (val > max) return max;
-    else if (val < min ) return min;
-    return val;
-}
-
 internal void renderGradient(graphics_buffer* buffer, int offsetX, int offsetY)
 {
-    Uint8 *Row = (Uint8 *)buffer->pixels;    
+    Uint8 *row = (Uint8 *)buffer->pixels;    
     for(int Y = 0; Y < buffer->height; ++Y)
     {
-        Uint32 *Pixel = (Uint32 *)Row;
+        Uint32 *pixel = (Uint32 *)row;
         for(int X = 0; X < buffer->width; ++X)
         {
-            Uint8 Blue = (Uint8)X + offsetX;
-            Uint8 Green = (Uint8)Y + offsetY;
+            // so to my understanding when it reaches 255 it wraps around to 0 and starts counting again
+            // TODO: try to code this myself using different types
+            Uint8 color1 = (Uint8)X + offsetX;
+            Uint8 color2 = (Uint8)Y + offsetY;
 
             // RGBA 
-            *Pixel++ = ((Green << 8) | Blue << 16);
+            *pixel++ = ((color2 << 8) | color1 << 8);
         }
         
-        Row += 4 * buffer->width;
+        row += 4 * buffer->width;
     }
+}
 
+internal void renderRectangle(graphics_buffer* buffer, int x, int y, int width, int height, color color)
+{
+    Uint8 *Row = (Uint8 *)buffer->pixels; 
+    int pitch = buffer->bytesPerPixel * buffer->width;
+    Row = Row + (y * pitch);
+    for(int Y = 0; Y < height; Y++)
+    {
+        Uint32 *Pixel = (Uint32*)Row + x;
+        for(int X = 0; X < width; X++)
+        {
+            *Pixel++ = (color.red) | (color.green << 8) | (color.blue << 16) ;
+        }
+        Row = Row + pitch;
+    }
 }
 
 void UpdateAndRender(graphics_buffer* buffer, user_input *input, game_state *gameState)
 {
-    gameState->player.x += (input->stickX) * 5 ;
-    gameState->player.y += (input->stickY) * 5 ;
-	gameState->player.x += input->right * input->stickRange;
-    gameState->player.x -= input->left * input->stickRange;
-    gameState->player.y -= input->up * input->stickRange;
-    gameState->player.y += input->down * input->stickRange;
-    renderGradient(buffer, gameState->player.x, gameState->player.y);
-    // rect->y = clamp(0, rect->y, SCREEN_HEIGHT - rect->h);
-    // rect->x = clamp(0, rect->x, SCREEN_WIDTH - rect->w);
+    /* Update player */
+    int speed = 3;
+    gameState->player.x += (input->stickX) * speed;
+    gameState->player.y += (input->stickY) * speed;
+	gameState->player.x += input->right * input->stickRange * speed;
+    gameState->player.x -= input->left * input->stickRange * speed;
+    gameState->player.y -= input->up * input->stickRange * speed;
+    gameState->player.y += input->down * input->stickRange * speed;
+
+    color colorClear = {0, 150, 150, 0};
+    color color = {0, 250, 150, 0};
+
+    renderRectangle(buffer, 0, 0, buffer->width, buffer->height, colorClear);
+    // renderGradient(buffer, gameState->player.x, gameState->player.y);
+    renderRectangle(buffer, gameState->player.x, gameState->player.y, 40, 40, color);
+    
 }

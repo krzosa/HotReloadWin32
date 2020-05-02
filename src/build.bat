@@ -1,7 +1,7 @@
 @echo off
 
 set CompilerFlags=-nologo -MT -Oi -FC -W4 -wd4100 -Zi
-set LinkerFlags=..\lib\SDL2main.lib ..\lib\SDL2.lib ..\lib\SDL2_mixer.lib  
+set LinkerFlags=..\lib\SDL2main.lib ..\lib\SDL2.lib ..\lib\SDL2_mixer.lib
 
 IF NOT EXIST ..\build mkdir ..\build
 cd ..\build 
