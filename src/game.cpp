@@ -1,5 +1,4 @@
 #include "game.h"
-#include "include/SDL.h"
 
 internal void renderGradient(graphics_buffer* buffer, int offsetX, int offsetY)
 {
@@ -15,7 +14,7 @@ internal void renderGradient(graphics_buffer* buffer, int offsetX, int offsetY)
             Uint8 color2 = (Uint8)Y + offsetY;
 
             // RGBA 
-            *pixel++ = ((color2 << 8) | color1 << 8);
+            *pixel++ = ((color2 << 8) | color1 << 16);
         }
         
         row += 4 * buffer->width;
@@ -50,10 +49,10 @@ void UpdateAndRender(graphics_buffer* buffer, user_input *input, game_state *gam
     gameState->player.y += input->down * input->stickRange * speed;
 
     color colorClear = {0, 150, 150, 0};
-    color color = {0, 250, 150, 0};
+    color color = {250, 250, 150, 0};
 
     renderRectangle(buffer, 0, 0, buffer->width, buffer->height, colorClear);
-    // renderGradient(buffer, gameState->player.x, gameState->player.y);
+    renderGradient(buffer, gameState->player.x, gameState->player.y);
     renderRectangle(buffer, gameState->player.x, gameState->player.y, 40, 40, color);
     
 }

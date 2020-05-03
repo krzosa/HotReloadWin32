@@ -1,3 +1,7 @@
+## Example:
+
+![hot reload](./hot_reload.gif)
+
 ## General Overview:
 1. Split the code into 2 parts, platform layer and the game/application
 2. Compile the game / application into a dll and export functions from it

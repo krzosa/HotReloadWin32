@@ -1,5 +1,5 @@
 #define SDL_MAIN_HANDLED
-#include "include/SDL.h"
+#include "external_include/SDL.h"
 #include <windows.h>
 #include "game.h"
 

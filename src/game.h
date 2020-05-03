@@ -1,5 +1,5 @@
 #pragma once
-#include "include\SDL_stdinc.h"
+#include "external_include\SDL_stdinc.h"
 
 #define NO_STDIO_REDIRECT
 #define internal static 
