@@ -3,7 +3,7 @@
 ![hot reload](./hot_reload.gif)
 
 ## General Overview:
-1. Split the code into 2 parts, platform layer and the game/application
+1. Split the code into 2 parts, platform layer and the game/application 
 2. Compile the game / application into a dll and export functions from it
 3. Copy the dll to a different file(to prevent windows from locking the file) 
 4. Load the dll from that different file at runtime and extract the functions
@@ -31,6 +31,7 @@
 * Sound buffer initialization, passing the buffer to dll to fill
 * Memory, passing that to dll to use and fill
 * Looping application state
+
 
 ## To run:
 
