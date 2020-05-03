@@ -31,3 +31,7 @@
 * Sound buffer initialization, passing the buffer to dll to fill
 * Memory, passing that to dll to use and fill
 * Looping application state
+
+## To run:
+
+* You need to run build.bat(from inside src folder) from developer prompt which you get in windows start menu when you install Visual Studio or Windows Build Tools

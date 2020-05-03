@@ -10,6 +10,13 @@
 global_variable SDL_Window* window = NULL;
 global_variable int global_loop = 1;
 
+/* this macro creates two type definitions UpdateAndRender(graphics_buffer* buffer, user_input *input, game_state *gameState) 
+    and UpdateAndRenderStub(graphics_buffer* buffer, user_input *input, game_state *gameState)
+    {
+
+    }
+    stub does nothing, its like nulling a pointer but we have confidence that it wont break anything if something happens 
+*/
 #define UPDATE_AND_RENDER(name) void name(graphics_buffer* buffer, user_input *input, game_state *gameState)
 typedef UPDATE_AND_RENDER(UpdateAndRender);
 UPDATE_AND_RENDER(UpdateAndRenderStub)
@@ -24,6 +31,8 @@ struct win32_game_code
     bool isValid;
 };
 
+/* Searches for a file, extracts properties and returns the time
+    the file was last written to  */
 internal FILETIME Win32GetLastWriteTime(char* file)
 {
     FILETIME lastWriteTime = {};
@@ -38,6 +47,7 @@ internal FILETIME Win32GetLastWriteTime(char* file)
     return lastWriteTime;
 }
 
+/* Unloads the dll and nulls the pointers to functions from the dll */
 internal void Win32UnloadGameCode(win32_game_code *GameCode)
 {
     if(GameCode->library)
@@ -50,6 +60,8 @@ internal void Win32UnloadGameCode(win32_game_code *GameCode)
     GameCode->isValid = false;
 }
 
+/* Copies the main_dll to a temp_dll, loads temp_dll, returns a struct containing pointer
+    to the lib, functions and last write time */
 internal win32_game_code Win32LoadGameCode(char* mainDllPath, char* tempDllPath)
 {
     win32_game_code Result;
@@ -75,6 +87,7 @@ internal win32_game_code Win32LoadGameCode(char* mainDllPath, char* tempDllPath)
     return Result;
 }
 
+/* Generic input handling, nothing to see here */
 internal void handleInput(SDL_Event* event, user_input* input, SDL_GameController* gGameController)
 {
     while (SDL_PollEvent(event)) {
@@ -186,7 +199,6 @@ internal void handleInput(SDL_Event* event, user_input* input, SDL_GameControlle
                     int controllerStickMaxValue = 32767;
                     if(event->caxis.axis == SDL_CONTROLLER_AXIS_LEFTX )
                     {
-                        // Normalizing stick value to range <0, 4> 
                         input->stickX = event->caxis.value / (controllerStickMaxValue / input->stickRange);
                     }
                     else if (event->caxis.axis == SDL_CONTROLLER_AXIS_LEFTY )
@@ -214,13 +226,11 @@ internal void handleInput(SDL_Event* event, user_input* input, SDL_GameControlle
                     {
                         SDL_SetWindowBordered(window, SDL_TRUE);
                         SDL_SetWindowOpacity(window, 1);
-                        // SDL_Log("SDL_WINDOWEVENT_FOCUS_GAINED");
                     }
                     else if(event->window.event == SDL_WINDOWEVENT_FOCUS_LOST)
                     {
                         SDL_SetWindowBordered(window, SDL_FALSE);
                         SDL_SetWindowOpacity(window, 0.5);
-                        // SDL_Log("SDL_WINDOWEVENT_FOCUS_LOST");
                     }
                 } break;
             }
@@ -266,6 +276,7 @@ int main()
         global_loop = 0;
     }
 
+/* Passing absolute paths of dlls to the load function */
     win32_game_code gameCode = {};
     gameCode = Win32LoadGameCode(mainDllPath, tempDllPath);
 
@@ -284,7 +295,6 @@ int main()
     SDL_GetWindowSize(window, &buffer.width, &buffer.height);
     SDL_Texture* texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING,
                                             buffer.width, buffer.height);
-    // Windows function for allocating memory
     buffer.pixels = VirtualAlloc(NULL, buffer.width * buffer.height * buffer.bytesPerPixel, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 
     Uint32 prevIterationTimer = 0;
@@ -293,16 +303,18 @@ int main()
         Uint32 betweenFramesTime = timerStart - prevIterationTimer; // delta time
         prevIterationTimer = SDL_GetTicks();
 
-        // check for last write to the dll and if it changed, reload the dll
+/* Check for last write to the dll and if it changed, reload the dll */
         FILETIME dllFileWriteTime = Win32GetLastWriteTime(mainDllPath);
         if (CompareFileTime(&dllFileWriteTime, &gameCode.lastDllWriteTime) != 0)
         {
+/* Unload game code so we can write to the temp_dll, copy main_dll to temp_dll and load game code */
             Win32UnloadGameCode(&gameCode);
             gameCode = Win32LoadGameCode(mainDllPath, tempDllPath); 
         }
 
         handleInput(&event, &input, gGameController);
 
+/* Call function from the dll */
         gameCode.UpdateAndRender(&buffer, &input, &gameState);
         SDL_UpdateTexture(texture, 0, buffer.pixels, buffer.width * buffer.bytesPerPixel);
         SDL_RenderCopy(renderer, texture, 0, 0); 
@@ -311,11 +323,9 @@ int main()
         Uint32 timerStop = SDL_GetTicks();
         Uint32 iterationTime = timerStop - timerStart;
 
-        // calculate how much we should delay a frame to keep steady framerate
         if (iterationTime < MILLISECONDS_BETWEEN_FRAMES)
         {
             SDL_Delay(MILLISECONDS_BETWEEN_FRAMES - iterationTime);
         }
     }
-    // Windows handles memory deallocation on exit so its not needed
 }
