@@ -1,0 +1,6 @@
+[submodule "Win32PlatformLayer"]
+	path = Win32PlatformLayerWithHotReload
+	url = https://github.com/krzosa/Win32PlatformLayer
+[submodule "RaylibHotReloadTemplate"]
+	path = RaylibHotReloadTemplate
+	url = https://github.com/krzosa/RaylibHotReloadTemplate.git

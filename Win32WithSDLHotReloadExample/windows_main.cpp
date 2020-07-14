@@ -276,7 +276,7 @@ int main()
         global_loop = 0;
     }
 
-/* Passing absolute paths of dlls to the load function */
+    /* Passing absolute paths of dlls to the load function */
     win32_game_code gameCode = {};
     gameCode = Win32LoadGameCode(mainDllPath, tempDllPath);
 
@@ -303,18 +303,18 @@ int main()
         Uint32 betweenFramesTime = timerStart - prevIterationTimer; // delta time
         prevIterationTimer = SDL_GetTicks();
 
-/* Check for last write to the dll and if it changed, reload the dll */
+        /* Check for last write to the dll and if it changed, reload the dll */
         FILETIME dllFileWriteTime = Win32GetLastWriteTime(mainDllPath);
         if (CompareFileTime(&dllFileWriteTime, &gameCode.lastDllWriteTime) != 0)
         {
-/* Unload game code so we can write to the temp_dll, copy main_dll to temp_dll and load game code */
+            /* Unload game code so we can write to the temp_dll, copy main_dll to temp_dll and load game code */
             Win32UnloadGameCode(&gameCode);
             gameCode = Win32LoadGameCode(mainDllPath, tempDllPath); 
         }
 
         handleInput(&event, &input, gGameController);
 
-/* Call function from the dll */
+        /* Call function from the dll */
         gameCode.UpdateAndRender(&buffer, &input, &gameState);
         SDL_UpdateTexture(texture, 0, buffer.pixels, buffer.width * buffer.bytesPerPixel);
         SDL_RenderCopy(renderer, texture, 0, 0); 

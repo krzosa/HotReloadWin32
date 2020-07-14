@@ -12,12 +12,9 @@
    2. Copy the dll to a different file
    3. Load the dll from that different file and extract the functions
 
-
 ## Notes:
  * Before copying temp dll to main dll make sure to NULL all the pointers that accessed something from the dll
  * Compile with /LD flag and also tell the compiler which functions to export with /link /EXPORT:function ... 
- * There are some additional troubles if you want to have hot reload while debugging with Visual Studio because VStudio is locking the PDB file so the solution is to write to a different file with a different name each time you build the dll
-
 
 ## Some other things in code
 * Graphics buffer initialization, passing the buffer to dll to fill
@@ -26,7 +23,6 @@
 * Cool gradient/rectangle rendering in dll
 * Locked framerate, delta time caluclations etc.
 
-
 ## Cool things that could be done
 * Sound buffer initialization, passing the buffer to dll to fill
 * Memory, passing that to dll to use and fill
@@ -34,5 +30,7 @@
 
 
 ## To run:
+Firstly you need the microsoft MSVC compiler which you can get by installing Visual Studio or Microsoft Build tools(I recommend the second option https://visualstudio.microsoft.com/pl/visual-cpp-build-tools/). After the installation search for "x64 native tools command prompt" in the main windows 10 search bar. From that terminal you can finally launch the build script.
 
-* You need to run build.bat(from inside src folder) from developer prompt which you get in windows start menu when you install Visual Studio or Windows Build Tools
+## Based on(also contains more info):
+   https://hero.handmade.network/episode/code/day021/

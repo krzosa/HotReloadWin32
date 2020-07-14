@@ -18,7 +18,7 @@ UPDATE_AND_RENDER(UpdateAndRenderStub)
 
 /* Searches for a file, extracts properties and returns the time
     the file was last written to  */
-internal FILETIME Win32GetLastWriteTime(char* file)
+FILETIME Win32GetLastWriteTime(char* file)
 {
     FILETIME lastWriteTime = {};
     WIN32_FIND_DATAA data;
@@ -33,7 +33,7 @@ internal FILETIME Win32GetLastWriteTime(char* file)
 }
 
 /* Unloads the dll and nulls the pointers to functions from the dll */
-internal void Win32UnloadGameCode(win32_game_code *GameCode)
+void Win32UnloadGameCode(win32_game_code *GameCode)
 {
     if(GameCode->library)
     {
@@ -47,7 +47,7 @@ internal void Win32UnloadGameCode(win32_game_code *GameCode)
 
 /* Copies the main_dll to a temp_dll, loads temp_dll, returns a struct containing pointer
     to the lib, functions and last write time */
-internal win32_game_code Win32LoadGameCode(char* mainDllPath, char* tempDllPath)
+win32_game_code Win32LoadGameCode(char* mainDllPath, char* tempDllPath)
 {
     win32_game_code Result;
     Result.lastDllWriteTime = Win32GetLastWriteTime(tempDllPath);
@@ -73,7 +73,7 @@ internal win32_game_code Win32LoadGameCode(char* mainDllPath, char* tempDllPath)
 }
 
 
-MAIN()
+int main()
 {
     /* Get absolute paths to dll */
     char* basePath = SDL_GetBasePath();
